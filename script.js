@@ -14,7 +14,6 @@ let audio = document.querySelector('audio');
 let fcb_array = [], ctx, analyser, source;
 
 input.addEventListener('change', function() {
-    console.log(this.files[0]);
     let url = URL.createObjectURL(this.files[0]);
     audio.src = url;
     if (!ctx) {
@@ -125,7 +124,7 @@ setInterval(function() {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// support functions
 
 function clearCanvas() {
-    context.fillStyle = 'black';
+    context.fillStyle = mode == 1 ? 'rgba(0,0,0,0.1)' : 'black';
     context.fillRect(0, 0, canvas.width, canvas.height);
 };
 
