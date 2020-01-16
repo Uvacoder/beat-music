@@ -182,6 +182,12 @@ function connectParticle1() {
     context.stroke();
 };
 
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    modeSet(mode);
+});
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// particle objects
 
 function Particle1(x) {
