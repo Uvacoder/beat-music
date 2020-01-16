@@ -11,20 +11,35 @@ canvas.height = window.innerHeight;
 
 let input = document.querySelector('input');
 let audio = document.querySelector('audio');
-let fcb_array = [], ctx, analyser, source;
+let audioCtx, analyser, source, raw = [];
 
 input.addEventListener('change', function() {
+    if (!audioCtx) {
+        // The Web Audio API provides a powerful and versatile system for
+        // controlling audio on the Web, allowing us to choose audio
+        // sources, add effects to audio, create audio visualizations,
+        // apply spatial effects, and much more.
+        audioCtx = new AudioContext();
+
+        // The AnalyserNode interface represents a node able to provide real-time
+        // frequency and time-domain analysis information. It is an AudioNode that
+        // passes the audio stream unchanged from the input to the output, but allows
+        // you to take the generated data, process it, and create audio visualizations.
+        analyser = audioCtx.createAnalyser();
+
+        // The MediaElementAudioSourceNode interface represents
+        // an audio source consisting of an HTML5 <audio> or <video> element.
+        source = audioCtx.createMediaElementSource(audio);
+
+        source.connect(analyser);
+
+        // The AudioDestinationNode interface represents the end destination of
+        // an audio graph in a given context — usually the speakers of your device.
+        analyser.connect(audioCtx.destination);
+    }
+
     let url = URL.createObjectURL(this.files[0]);
     audio.src = url;
-    if (!ctx) {
-        ctx = new AudioContext();
-        analyser = ctx.createAnalyser();
-        source = ctx.createMediaElementSource(audio);
-        source.connect(analyser);
-        analyser.connect(ctx.destination);
-    }
-    audio.pause();
-    audio.currentTime = 0;
     audio.play();
 });
 
@@ -62,9 +77,6 @@ function modeSet(m) {
         for (let i = 365; i < 445; i += 0.5) {
             beats.push(new Particle2(i));
         }
-        // for (let i = 0; i < 360; i++) {
-        //     beats.push(new Particle2(i));
-        // }
     } else if (mode == 3) {
         for (let i = 200; i < canvas.width - 200; i += 3) {
             beats.push(new Particle3(i));
@@ -87,36 +99,42 @@ setInterval(function() {
     clearCanvas();
 
     if (!audio.paused) {
-        fcb_array = new Uint8Array(analyser.frequencyBinCount);
+        // The frequencyBinCount read-only property of the AnalyserNode interface
+        // is an unsigned integer. This generally equates to the number of data
+        // values you will have to play with for the visualization.
+        raw = new Uint8Array(analyser.frequencyBinCount);
+
         if (mode == 1 || mode == 3) {
-            analyser.getByteFrequencyData(fcb_array);
+            // The getByteFrequencyData() method of the AnalyserNode interface copies
+            // the current frequency data into a Uint8Array (unsigned byte array) passed into it.
+            analyser.getByteFrequencyData(raw);
         } else {
-            analyser.getByteTimeDomainData(fcb_array);
+            // The getByteTimeDomainData() method of the AnalyserNode Interface copies the
+            // current waveform, or time-domain, data into a Uint8Array (unsigned byte array) passed into it.
+            analyser.getByteTimeDomainData(raw);
         }
     }
 
     if (mode == 1) {
         for (let i = 0; i < beats.length; i++) {
-            beats[i].update(fcb_array[Math.floor(700 / beats.length) * i]).draw();
+            beats[i].update(raw[Math.floor(700 / beats.length) * i]).draw();
         }
         connectParticle1();
     } else if (mode == 2) {
         for (let i = 0; i < beats.length; i++) {
-            beats[i].update(fcb_array[i] - 128).draw();
+            beats[i].update(raw[i] - 128).draw();
         };
     } else if (mode == 3) {
-        let mod = getLowestBeat(beats);
         for (let i = 0; i < beats.length; i++) {
-            beats[i].update(fcb_array[i]).draw(mod);
+            beats[i].update(raw[i]).draw();
         }
     } else if (mode == 4) {
         for (let i = 0; i < beats.length; i++) {
-            beats[i].update((fcb_array[i] - 128) * 2).draw();
+            beats[i].update((raw[i] - 128) * 2).draw();
         }
     } else if (mode == 5) {
-        let mod = getLowestBeat(beats);
         for (let i = 0; i < beats.length; i++) {
-            beats[i].update(fcb_array[i]).draw(mod);
+            beats[i].update(raw[i]).draw();
         }
     }
 }, 1000 / 144);
@@ -128,98 +146,116 @@ function clearCanvas() {
     context.fillRect(0, 0, canvas.width, canvas.height);
 };
 
-function randomBetween(min, max)
-{
-  return Math.floor(Math.random() * (max - min)) + min;
-}
-function getHypothenuse(x1,y1,x2,y2)
-{
-  let x = Math.abs(x1-x2);
-  let y = Math.abs(y1-y2);
-  return Math.sqrt((x*x)+(y*y));
-}
-function getGreatest(arr)
-{
-  let g = 0;
-  for (let i = 0; i < arr.length; i++)
-    if (g < arr[i]) g = arr[i];
-  return g;
-}
-function getLowestBeat()
-{
-  let l = 1000;
-  for (let i = 0; i < beats.length; i++)
-  {
-    if (l > beats[i].beat) l = beats[i].beat;
-  }
-  return l;
-}
+function randomBetween(min, max) {
+    return Math.floor(Math.random() * (max - min)) + min;
+};
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// particles
+function getHypothenuse(x1, y1, x2, y2) {
+    let x = Math.abs(x1 - x2);
+    let y = Math.abs(y1 - y2);
+    return Math.sqrt((x * x) + (y * y));
+};
 
-function Particle1(x)
-{
-  this.set = function()
-  {
-    this.ang = randomBetween(0,360);
-    let dx = Math.cos(this.ang * Math.PI / 180);
-    let dy = Math.sin(this.ang * Math.PI / 180);
-    this.x = canvas.width/2 + dx * randomBetween(0,200);
-    this.y = canvas.height/2 + dy * randomBetween(0,200);
-    this.x = randomBetween(0,canvas.width); //
-    this.y = randomBetween(0,canvas.height); //
-    this.radius = 1;
-    this.speed = 1;
-    this.opacity = 0;
-    this.angle = randomBetween(90-45,270+45);
-    this.minAngle = this.angle-randomBetween(45,90);
-    this.maxAngle = this.angle+randomBetween(45,90);
-    this.isAngleIncreasing = false;
-  };this.set();
-  this.update = function(beat)
-  {
-    this.beat = beat;
-
-    if (getHypothenuse(this.x,this.y,canvas.width/2,canvas.height/2) > 200)
-        this.set();
-
-    this.opacity-=0.01;
-    if (this.beat > 150) {this.opacity = 1;}
-    else this.set();
-    this.speed = this.beat/40;
-    if (this.speed <= 0) this.speed = 0.5;
-
-    if (this.angle <= this.minAngle || this.angle >= this.maxAngle)
-      this.isAngleIncreasing = !this.isAngleIncreasing;
-    if (this.isAngleIncreasing) this.angle+=this.speed;
-    else this.angle-=this.speed;
-
-    let dx = Math.cos(this.angle * Math.PI / 180) * this.speed;
-    let dy = Math.sin(this.angle * Math.PI / 180) * this.speed;
-    this.x += dx;
-    this.y += dy;
-
-    this.color = 'rgba(255,255,255,'+this.opacity+')';
-
-    if (this.x-this.radius > canvas.width || this.x+this.radius < 0 ||
-     this.y-this.radius > canvas.height || this.y+this.radius < 0)
-      this.set();
-
-    return this;
-  }
-  this.draw = function()
-  {
-    context.fillStyle = this.color;
-    context.strokeStyle = this.color;
-
+function connectParticle1() {
+    let connRadius = 50;
+    for (let i = 0; i < beats.length; i++) {
+        for (let j = i + 1; j < beats.length; j++) {
+            if (getHypothenuse( beats[i].x, beats[i].y, beats[j].x, beats[j].y) <= connRadius && beats[i].opacity > 0 && beats[j].opacity > 0) {
+                let opacity = Math.abs((getHypothenuse(beats[i].x, beats[i].y, beats[j].x, beats[j].y)) - connRadius) * (1 / connRadius);
+                context.strokeStyle = 'rgba(255, 225, 255, ' + opacity + ')';
+                context.beginPath();
+                context.moveTo(beats[i].x, beats[i].y);
+                context.lineTo(beats[j].x, beats[j].y);
+                context.stroke();
+                context.beginPath();
+                context.moveTo(canvas.width / 2 + (canvas.width / 2 - beats[i].x), beats[i].y);
+                context.lineTo(canvas.width / 2 + (canvas.width / 2 - beats[j].x), beats[j].y);
+                context.stroke();
+            }
+        }
+    }
+    context.strokeStyle = '#fff';
+    context.fillStyle = 'rgba(0, 0, 0, 0.2)';
     context.beginPath();
-    context.arc(this.x,this.y,this.radius,Math.PI*2,false);
+    context.arc(canvas.width / 2, canvas.height / 2, 210, Math.PI * 2, false);
     context.fill();
-    context.beginPath();
-    context.arc(canvas.width/2+(canvas.width/2-this.x),this.y,this.radius,Math.PI*2,false);
-    context.fill();
-  }
-}
+    context.stroke();
+};
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// particle objects
+
+function Particle1(x) {
+    this.set = function() {
+        this.ang = randomBetween(0, 360);
+        let dx = Math.cos(this.ang * Math.PI / 180);
+        let dy = Math.sin(this.ang * Math.PI / 180);
+        this.x = canvas.width / 2 + dx * randomBetween(0, 200);
+        this.y = canvas.height / 2 + dy * randomBetween(0, 200);
+        this.x = randomBetween(0, canvas.width);
+        this.y = randomBetween(0, canvas.height);
+        this.radius = 1;
+        this.speed = 1;
+        this.opacity = 0;
+        this.angle = randomBetween(90 - 45, 270 + 45);
+        this.minAngle = this.angle - randomBetween(45, 90);
+        this.maxAngle = this.angle + randomBetween(45, 90);
+        this.isAngleIncreasing = false;
+    }; this.set();
+
+    this.update = function(beat) {
+        this.beat = beat;
+
+        if (getHypothenuse(this.x, this.y, canvas.width / 2, canvas.height / 2) > 200) {
+            this.set();
+        }
+
+        this.opacity -= 0.01;
+        if (this.beat > 150) {
+            this.opacity = 1;
+        } else  {
+            this.set();
+        }
+        this.speed = this.beat / 40;
+        if (this.speed <= 0) {
+            this.speed = 0.5;
+        }
+
+        if (this.angle <= this.minAngle || this.angle >= this.maxAngle) {
+            this.isAngleIncreasing = !this.isAngleIncreasing;
+        }
+        if (this.isAngleIncreasing) {
+            this.angle += this.speed;
+        } else {
+            this.angle -= this.speed;
+        }
+
+        let dx = Math.cos(this.angle * Math.PI / 180) * this.speed;
+        let dy = Math.sin(this.angle * Math.PI / 180) * this.speed;
+        this.x += dx;
+        this.y += dy;
+
+        this.color = 'rgba(255,255,255,' + this.opacity + ')';
+
+        if (this.x - this.radius > canvas.width || this.x + this.radius < 0 ||
+            this.y - this.radius > canvas.height || this.y + this.radius < 0) {
+            this.set();
+        }
+
+        return this;
+    };
+
+    this.draw = function() {
+        context.fillStyle = this.color;
+        context.strokeStyle = this.color;
+
+        context.beginPath();
+        context.arc(this.x, this.y, this.radius, Math.PI * 2, false);
+        context.fill();
+        context.beginPath();
+        context.arc(canvas.width / 2 + (canvas.width / 2 - this.x), this.y, this.radius, Math.PI * 2, false);
+        context.fill();
+    };
+};
 
 function Particle2(ang) {
     this.distanceRadius = canvas.height / 4;
@@ -261,7 +297,7 @@ function Particle3(x) {
         this.beat = !beat ? 0 : beat;
         return this;
     };
-    this.draw = function(mod) {
+    this.draw = function() {
         context.lineCap = 'round';
         context.lineWidth = 2;
         context.strokeStyle = 'white';
@@ -332,42 +368,5 @@ function Particle4(i) {
         context.strokeRect(canvas.width / 2 - 210, canvas.height / 2 - 210, 420, 420); // draw square
     };
 };
-
-function connectParticle1()
-{
-  let connRadius = 50;
-  for (let i = 0; i < beats.length; i++)
-  {
-    for (let j = i+1; j < beats.length; j++)
-    {
-      if (getHypothenuse(
-      beats[i].x,beats[i].y,
-      beats[j].x,beats[j].y) <= connRadius &&
-      beats[i].opacity > 0 && beats[j].opacity > 0)
-      {
-        context.strokeStyle = "rgba(255,225,255,"
-        +Math.abs((getHypothenuse(
-        beats[i].x,beats[i].y,
-        beats[j].x,beats[j].y))
-        -connRadius)*(1/connRadius)+
-        ")";
-        context.beginPath();
-        context.moveTo(beats[i].x,beats[i].y);
-        context.lineTo(beats[j].x,beats[j].y);
-        context.stroke();
-        context.beginPath();
-        context.moveTo(canvas.width/2+(canvas.width/2-beats[i].x),beats[i].y);
-        context.lineTo(canvas.width/2+(canvas.width/2-beats[j].x),beats[j].y);
-        context.stroke();
-      }
-    }
-  }
-  context.strokeStyle = "#fff";
-  context.fillStyle = "rgba(0,0,0,0.2)";
-  context.beginPath();
-  context.arc(canvas.width/2, canvas.height/2, 210, Math.PI*2, false);
-  context.fill();
-  context.stroke();
-}
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// end
